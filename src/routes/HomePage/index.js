@@ -1,13 +1,34 @@
 import React, { Component, Fragment } from 'react'
 import { connect } from 'dva'
-import { Modal, Table } from 'antd'
-import { ButtonBlock, Page, StyledButton, TextButton } from './styles'
-import { getResources } from '../../models/resources'
+import { Modal, Input, Table, Tabs } from 'antd'
+import {
+  Page,
+  Pane,
+  Sider,
+  ButtonGroup,
+  StyledButton as Button,
+  TextButton
+} from './styles'
+import {
+  ACTION_TYPES,
+  getCondition,
+  getCurrentNamespace,
+  getCurrentResources,
+  getNamespaces,
+  dispatchAction
+} from '../../models/resources'
 import { saveAs } from 'file-saver/FileSaver'
+import { unflatten } from 'flat'
+import AddNamespaceModal from './components/AddNamespaceModal'
 import AddResourceModal from './components/AddResourceModal'
-import ImportResourceModal from './components/ImportResourceModal'
 import ExportResourceModal from './components/ExportResourceModal'
-import ConnectedEditResourceModal from './containers/ConnectedEditResourceModal'
+
+const TabPane = Tabs.TabPane
+const Search = Sider.withComponent(Input.Search)
+
+const STATE_MODAL_VISIBLE_ADD_NAMESPACE = 'modalVisibleAddNamespace'
+const STATE_MODAL_VISIBLE_ADD_RESOURCE = 'modalVisibleAddResource'
+const STATE_MODAL_VISIBLE_EXPORT_RESOURCE = 'modalVisibleExportResource'
 
 class HomePage extends Component {
   constructor(props) {
@@ -71,35 +92,75 @@ class HomePage extends Component {
   }
 
   state = {
-    addModalVisible: false,
-    exportModalVisible: false,
-    selectedKeys: []
+    [STATE_MODAL_VISIBLE_ADD_NAMESPACE]: false,
+    [STATE_MODAL_VISIBLE_ADD_RESOURCE]: false,
+    [STATE_MODAL_VISIBLE_EXPORT_RESOURCE]: false,
+    selectedKeys: [],
+    condition: null
   }
 
-  createHandleToggleModal = modalVisible => () => {
+  handleChangeTabs = key => {
+    const { dispatch } = this.props
+    dispatchAction(dispatch)(ACTION_TYPES.selectNamespace, key)
+  }
+
+  handleEditTab = (targetKey, action) => {
+    const { handleToggleAddNamespaceModal, handleRemoveNamespace } = this
+    if (action === 'add') {
+      handleToggleAddNamespaceModal()
+    } else if (action === 'remove') {
+      handleRemoveNamespace(targetKey)
+    } else {
+      // nothing to do
+    }
+  }
+
+  handleChangeCondition = event => {
+    const { dispatch } = this.props
+    dispatchAction(dispatch)(ACTION_TYPES.setCondition, event.target.value)
+  }
+
+  handleToggleModal = modalVisible => () => {
     this.setState(({ [modalVisible]: visible }) => ({
       [modalVisible]: !visible
     }))
   }
 
-  handleToggleAddModal = this.createHandleToggleModal('addModalVisible')
+  handleToggleAddNamespaceModal = this.handleToggleModal(
+    STATE_MODAL_VISIBLE_ADD_NAMESPACE
+  )
 
-  handleToggleImportModal = this.createHandleToggleModal('importModalVisible')
+  handleToggleAddResourceModal = this.handleToggleModal(
+    STATE_MODAL_VISIBLE_ADD_RESOURCE
+  )
 
-  handleToggleExportModal = this.createHandleToggleModal('exportModalVisible')
+  handleToggleExportResourceModal = this.handleToggleModal(
+    STATE_MODAL_VISIBLE_EXPORT_RESOURCE
+  )
+
+  handleAddNamespace = () => {
+    const { addNamespaceModal, handleToggleAddNamespaceModal, props } = this
+    const { dispatch } = props
+    if (addNamespaceModal) {
+      const { validateFieldsAndScroll } = addNamespaceModal.props.form
+      validateFieldsAndScroll((error, { namespace }) => {
+        if (!error) {
+          dispatchAction(dispatch)(ACTION_TYPES.addNamespace, namespace)
+          handleToggleAddNamespaceModal()
+        }
+      })
+    }
+  }
 
   handleAddResource = () => {
-    const { dispatch } = this.props
-    const addModal = this.addModal
-    if (addModal) {
-      const { validateFieldsAndScroll } = addModal.props.form
-      validateFieldsAndScroll((error, values) => {
+    const { addResourceModal, handleToggleAddResourceModal, props } = this
+    const { dispatch } = props
+    if (addResourceModal) {
+      const { validateFieldsAndScroll } = addResourceModal.props.form
+      validateFieldsAndScroll((error, resource) => {
         if (!error) {
-          dispatch({
-            type: 'resources/add',
-            payload: values
-          })
-          this.handleToggleAddModal()
+          dispatchAction(dispatch)(ACTION_TYPES.addResource, resource)
+          handleToggleAddResourceModal()
         }
       })
     }
@@ -109,12 +170,10 @@ class HomePage extends Component {
     const { dispatch } = this.props
 
     Modal.confirm({
-      content: '您确认删除选中的国际化资源吗？',
+      title: '危险操作',
+      content: `您确认删除选国际化资源“${key}”吗？`,
       onOk() {
-        dispatch({
-          type: 'resources/remove',
-          payload: [key]
-        })
+        dispatchAction(dispatch)(ACTION_TYPES.removeResources, [key])
       }
     })
   }
@@ -122,121 +181,130 @@ class HomePage extends Component {
   handleRemoveResources = () => {
     const { dispatch } = this.props
     const { selectedKeys } = this.state
-
     Modal.confirm({
-      content: '您确认删除所有选中的国际化资源吗？',
+      title: '危险操作',
+      content: `您确认删除国际化资源“${selectedKeys.join('，')}”吗？`,
       onOk() {
-        dispatch({
-          type: 'resources/remove',
-          payload: selectedKeys
-        })
+        dispatchAction(dispatch)(ACTION_TYPES.removeResources, selectedKeys)
       }
     })
   }
 
-  prepareEditingResource = payload => {
+  handleRemoveNamespace = namespace => {
     const { dispatch } = this.props
-    dispatch({
-      type: 'resources/prepareEditing',
-      payload
+
+    Modal.confirm({
+      title: '危险操作',
+      content: `您是否确认删除命名空间“${namespace}”？`,
+      onOk() {
+        dispatchAction(dispatch)(ACTION_TYPES.removeNamespace, namespace)
+      }
     })
   }
 
-  handleImportResource = () => {
-    const importModal = this.importModal
-    if (importModal) {
-      const { validateFieldsAndScroll } = importModal.props.form
-      validateFieldsAndScroll((error, { language, files }) => {
+  handleExportResource = () => {
+    const { exportResourceModal, handleToggleExportResourceModal, props } = this
+    const { currentNamespace, resources } = props
+    if (exportResourceModal) {
+      const { validateFieldsAndScroll } = exportResourceModal.props.form
+      validateFieldsAndScroll((error, { type, language }) => {
         if (!error) {
-          console.log(language);
-          console.log(files);
-          this.handleToggleImportModal()
-        }
-      })
-    }
-  }
-
-  handleExportResources = () => {
-    const { resources } = this.props
-    const exportModal = this.exportModal
-    if (exportModal) {
-      const { validateFieldsAndScroll } = exportModal.props.form
-      validateFieldsAndScroll((error, { filename, language }) => {
-        if (!error) {
-          const result = {}
+          let result = {}
           resources.forEach(({ key, [language]: value }) => {
             result[key] = value
           })
 
-          const blob = new Blob([JSON.stringify(result)])
-          saveAs(blob, `${filename}.${language}.json`)
-          this.handleToggleExportModal()
+          if (type === 'nested') {
+            result = unflatten(result)
+          }
+
+          const blob = new Blob([JSON.stringify(result, null, 4)])
+          saveAs(blob, `${currentNamespace}.${language}.json`)
+          handleToggleExportResourceModal()
         }
       })
     }
   }
 
   render() {
-    const { resources } = this.props
+    const { condition, currentNamespace, namespaces, resources } = this.props
     const {
-      addModalVisible,
-      importModalVisible,
-      exportModalVisible
+      [STATE_MODAL_VISIBLE_ADD_NAMESPACE]: modalVisibleAddNamespace,
+      [STATE_MODAL_VISIBLE_ADD_RESOURCE]: modalVisibleAddResource,
+      [STATE_MODAL_VISIBLE_EXPORT_RESOURCE]: modalVisibleExportResource,
+      selectedKeys
     } = this.state
+
     return (
       <Page>
-        <ButtonBlock>
-          <StyledButton
-            type="primary"
-            style={{ marginRight: '10px' }}
-            onClick={this.handleToggleAddModal}
-          >
-            添加
-          </StyledButton>
-          <StyledButton type="danger" onClick={this.handleRemoveResources}>
-            删除
-          </StyledButton>
-          <StyledButton onClick={this.handleToggleImportModal}>
-            导入
-          </StyledButton>
-          <StyledButton onClick={this.handleToggleExportModal}>
-            导出
-          </StyledButton>
-        </ButtonBlock>
+        <Tabs
+          type="editable-card"
+          activeKey={currentNamespace}
+          onChange={this.handleChangeTabs}
+          onEdit={this.handleEditTab}
+        >
+          {namespaces.map(namespace => (
+            <TabPane
+              key={namespace}
+              tab={namespace}
+              // closable={namespaces.length > 1}
+            />
+          ))}
+        </Tabs>
+        <Pane>
+          <ButtonGroup>
+            <Button
+              type="primary"
+              style={{ marginRight: '10px' }}
+              onClick={this.handleToggleAddResourceModal}
+            >
+              添加
+            </Button>
+            <Button
+              type="danger"
+              disabled={!selectedKeys.length}
+              onClick={this.handleRemoveResources}
+            >
+              删除
+            </Button>
+            <Button onClick={this.handleToggleImportModal}>导入</Button>
+            <Button onClick={this.handleToggleExportResourceModal}>导出</Button>
+          </ButtonGroup>
+          <Search value={condition} onChange={this.handleChangeCondition} />
+        </Pane>
+
         <Table
           columns={this.columns}
           dataSource={resources}
           rowSelection={this.rowSelection}
           pagination={this.pagination}
         />
-        <AddResourceModal
-          onCancel={this.handleToggleAddModal}
-          onOk={this.handleAddResource}
-          visible={addModalVisible}
-          wrappedComponentRef={modal => {
-            this.addModal = modal
-          }}
+        <AddNamespaceModal
+          onCancel={this.handleToggleAddNamespaceModal}
+          onOk={this.handleAddNamespace}
+          visible={modalVisibleAddNamespace}
+          wrappedComponentRef={modal => (this.addNamespaceModal = modal)}
         />
-        <ConnectedEditResourceModal />
-        <ImportResourceModal
-          onCancel={this.handleToggleImportModal}
-          onOk={this.handleImportResource}
-          visible={importModalVisible}
-          wrappedComponentRef={modal => {
-            this.importModal = modal
-          }}
+        <AddResourceModal
+          onCancel={this.handleToggleAddResourceModal}
+          onOk={this.handleAddResource}
+          visible={modalVisibleAddResource}
+          wrappedComponentRef={modal => (this.addResourceModal = modal)}
         />
         <ExportResourceModal
-          onCancel={this.handleToggleExportModal}
-          onOk={this.handleExportResources}
-          visible={exportModalVisible}
-          wrappedComponentRef={modal => {
-            this.exportModal = modal
-          }}
+          onCancel={this.handleToggleExportResourceModal}
+          onOk={this.handleExportResource}
+          visible={modalVisibleExportResource}
+          wrappedComponentRef={modal => (this.exportResourceModal = modal)}
         />
       </Page>
     )
   }
 }
 
-export default connect(state => ({ resources: getResources(state) }))(HomePage)
+export default connect(state => ({
+  condition: getCondition(state),
+  currentNamespace: getCurrentNamespace(state),
+  namespaces: getNamespaces(state),
+  resources: getCurrentResources(state)
+}))(HomePage)

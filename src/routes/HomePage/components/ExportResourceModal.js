@@ -1,8 +1,37 @@
 import React, { Component } from 'react'
-import { Form, Input, Modal, Select } from 'antd'
+import { Form, Modal, Radio, Select } from 'antd'
 
 const FormItem = Form.Item
-const Option = Select.Option
+const SelectOption = Select.Option
+const RadioGroup = Radio.Group
+
+const formItemProps = {
+  colon: false,
+  labelCol: { span: 8 },
+  wrapperCol: { span: 12 }
+}
+
+const types = [
+  {
+    label: 'Flat JSON',
+    value: 'flat'
+  },
+  {
+    label: 'Nested JSON',
+    value: 'nested'
+  }
+]
+
+const languages = [
+  {
+    label: '中文',
+    value: 'zh'
+  },
+  {
+    label: 'English',
+    value: 'en'
+  }
+]
 
 class ExportResourceModal extends Component {
   UNSAFE_componentWillReceiveProps(nextProps) {
@@ -19,18 +48,20 @@ class ExportResourceModal extends Component {
     return (
       <Modal title="导出国际化资源" {...rest}>
         <Form>
-          <FormItem>
-            {getFieldDecorator('filename', {
+          <FormItem label="文件类型" {...formItemProps}>
+            {getFieldDecorator('type', {
+              initialValue: 'nested',
               rules: [
                 {
                   required: true,
-                  message: '文件名不允许为空'
+                  message: '文件类型不允许为空'
                 }
               ]
-            })(<Input placeholder="文件名" />)}
+            })(<RadioGroup options={types} />)}
           </FormItem>
-          <FormItem>
+          <FormItem label="语言" {...formItemProps}>
             {getFieldDecorator('language', {
+              initialValue: 'zh',
               rules: [
                 {
                   required: true,
@@ -39,8 +70,9 @@ class ExportResourceModal extends Component {
               ]
             })(
               <Select placeholder="语言">
-                <Option key="en">English</Option>
-                <Option key="zh">中文</Option>
+                {languages.map(({ label, value }) => (
+                  <SelectOption key={value}>{label}</SelectOption>
+                ))}
               </Select>
             )}
           </FormItem>

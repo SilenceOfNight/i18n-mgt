@@ -2,11 +2,21 @@ import styled from 'styled-components'
 import { Button } from 'antd'
 
 export const Page = styled.div`
-  padding: 0 20px;
+  padding: 20px;
 `
 
-export const ButtonBlock = styled.div`
-  padding: 10px 0;
+export const Pane = styled.div`
+  display: flex;
+  margin-bottom: 15px;
+`
+
+export const Sider = styled.div`
+  width: 300px;
+  flex-shrink: 0;
+`
+
+export const ButtonGroup = styled.div`
+  flex-grow: 1;
 `
 
 export const StyledButton = styled(Button)`

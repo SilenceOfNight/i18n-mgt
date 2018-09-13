@@ -5,14 +5,17 @@ import './index.css'
 const app = dva({
   initialState: {
     resources: {
-      resources: [
-        {
-          key: 'model.confernece.subject.label',
-          en: 'Subject',
-          zh: '主题'
-        }
-      ],
-      resource: null
+      current: 'translation',
+      namespaces: {
+        translation: [
+          {
+            key: 'model.confernece.subject.label',
+            en: 'Subject',
+            zh: '主题'
+          }
+        ],
+        error: []
+      }
     }
   }
 })

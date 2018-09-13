@@ -13,12 +13,12 @@ class AddResourceModal extends Component {
   }
 
   render() {
-    const { form, ...rest } = this.props
+    const { form, onSubmit, ...rest } = this.props
 
     const { getFieldDecorator } = form
     return (
       <Modal title="添加国际化资源" {...rest}>
-        <Form>
+        <Form onSubmit={onSubmit}>
           <FormItem>
             {getFieldDecorator('key', {
               rules: [
