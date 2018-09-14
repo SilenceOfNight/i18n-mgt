@@ -1,27 +1,29 @@
 // import React from 'react'
 import { connect } from 'dva'
-import { getResource } from '../../../models/resources'
+import {
+  getEditingResource,
+  dispatchAction,
+  ACTION_TYPES
+} from '../../../models/resources'
 import EditResourceModal from '../components/EditResourceModal'
 
 const mapStateToProps = state => ({
-  resource: getResource(state),
-  visible: !!getResource(state)
+  resource: getEditingResource(state),
+  visible: !!getEditingResource(state)
 })
 
 const mapDispatchToProps = dispatch => ({
   onCancel() {
-    dispatch({
-      type: 'resources/cancelEditing'
-    })
+    dispatchAction(dispatch)(ACTION_TYPES.wipeOutEditingResource)
   },
-  onSubmit(payload) {
-    dispatch({
-      type: 'resources/edit',
-      payload
-    })
+  onSubmit(resource) {
+    dispatchAction(dispatch)(ACTION_TYPES.editResource, resource)
   }
 })
 
-const ConnectedEditResourceModal = connect(mapStateToProps, mapDispatchToProps)(EditResourceModal)
+const ConnectedEditResourceModal = connect(
+  mapStateToProps,
+  mapDispatchToProps
+)(EditResourceModal)
 
 export default ConnectedEditResourceModal

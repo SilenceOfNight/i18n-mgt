@@ -6,13 +6,22 @@ export const ACTION_TYPES = {
   addNamespace: 'ADD_NAMESPACE',
   removeNamespace: 'REMOVE_NAMESPACE',
   addResource: 'ADD_RESOURCE',
-  removeResources: 'REMOVE_RESOURCE',
+  importResources: 'IMPORT_RESOURCES',
+  prepareEditingResource: 'PREPARE_EDITING_RESOURCE',
+  editResource: 'EDIT_RESOURCE',
+  wipeOutEditingResource: 'WIPE_OUT_EDITING_RESOURCE',
+  removeResources: 'REMOVE_RESOURCES',
   setCondition: 'SET_CONDITION'
 }
 
 export default {
   namespace: NAMESPACE,
-  state: { condition: null, current: null, namespaces: [] },
+  state: {
+    condition: null,
+    current: null,
+    namespaces: [],
+    editingResource: null
+  },
   reducers: {
     [ACTION_TYPES.selectNamespace](state, { payload: namespace }) {
       return { ...state, current: namespace }
@@ -38,6 +47,57 @@ export default {
         [current]: preResources.concat([resource])
       }
       return { ...state, namespaces }
+    },
+    [ACTION_TYPES.importResources](
+      state,
+      {
+        payload: { language, resources }
+      }
+    ) {
+      const { current, namespaces: preNamespaces } = state
+      const preResources = preNamespaces[current]
+      const nextResources = [...preResources]
+      Object.entries(resources).forEach(([key, value]) => {
+        let exist = false
+        nextResources.forEach(resource => {
+          if (resource.key === key) {
+            resource[language] = value
+            exist = true
+          }
+        })
+
+        if (!exist) {
+          nextResources.push({
+            key,
+            [language]: value
+          })
+        }
+      })
+      const namespaces = {
+        ...preNamespaces,
+        [current]: nextResources
+      }
+      return { ...state, namespaces }
+    },
+    [ACTION_TYPES.prepareEditingResource](state, { payload: editingResource }) {
+      return { ...state, editingResource }
+    },
+    [ACTION_TYPES.wipeOutEditingResource](state) {
+      return { ...state, editingResource: null }
+    },
+    [ACTION_TYPES.editResource](state, { payload: resource }) {
+      const { current, namespaces: preNamespaces } = state
+      const preResources = preNamespaces[current]
+      const namespaces = {
+        ...preNamespaces,
+        [current]: preResources.map(preResource => {
+          if (preResource.key === resource.key) {
+            return resource
+          }
+          return preResource
+        })
+      }
+      return { ...state, namespaces, editingResource: null }
     },
     [ACTION_TYPES.removeResources](state, { payload: keysToRemove }) {
       const { current, namespaces: preNamespaces } = state
@@ -76,4 +136,8 @@ export const getCurrentResources = createSelector(
     namespaces[current].filter(
       ({ key }) => (condition ? key.indexOf(condition) > -1 : true)
     )
+)
+export const getEditingResource = createSelector(
+  [getState],
+  ({ editingResource }) => editingResource
 )

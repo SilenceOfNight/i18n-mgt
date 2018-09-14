@@ -1,6 +1,7 @@
 import React, { Component, Fragment } from 'react'
 import { connect } from 'dva'
-import { Modal, Input, Table, Tabs } from 'antd'
+import { Dropdown, Menu, Modal, Input, Table, Tabs, message } from 'antd'
+import FileUploader from '../../components/FileUploader'
 import {
   Page,
   Pane,
@@ -18,9 +19,10 @@ import {
   dispatchAction
 } from '../../models/resources'
 import { saveAs } from 'file-saver/FileSaver'
-import { unflatten } from 'flat'
+import { flatten, unflatten } from 'flat'
 import AddNamespaceModal from './components/AddNamespaceModal'
 import AddResourceModal from './components/AddResourceModal'
+import EditResourceModal from './containers/ConnectedEditResourceModal'
 import ExportResourceModal from './components/ExportResourceModal'
 
 const TabPane = Tabs.TabPane
@@ -72,6 +74,13 @@ class HomePage extends Component {
         width: '25%'
       }
     ]
+
+    this.overlay = (
+      <Menu onClick={this.handleChangeLanguage}>
+        <Menu.Item key="zh">中文</Menu.Item>
+        <Menu.Item key="en">英文</Menu.Item>
+      </Menu>
+    )
   }
 
   rowSelection = {
@@ -96,7 +105,8 @@ class HomePage extends Component {
     [STATE_MODAL_VISIBLE_ADD_RESOURCE]: false,
     [STATE_MODAL_VISIBLE_EXPORT_RESOURCE]: false,
     selectedKeys: [],
-    condition: null
+    condition: null,
+    language: 'zh'
   }
 
   handleChangeTabs = key => {
@@ -166,6 +176,40 @@ class HomePage extends Component {
     }
   }
 
+  handleImportResources = event => {
+    const [file] = event.target.files
+    if (file) {
+      const { name } = file
+
+      if (!name.match('.+.json$')) {
+        message.error('目前暂时只支持导入*.json类型的国际化资源文件')
+      } else {
+        const fileReader = new FileReader()
+        fileReader.readAsText(file)
+        fileReader.onload = event => {
+          const { dispatch } = this.props
+          const { language } = this.state
+          const resources = flatten(JSON.parse(event.target.result))
+
+          // const resources = Object.entries(content).map(([key, value]) => ({
+          //   key,
+          //   [language]: value
+          // }))
+
+          dispatchAction(dispatch)(ACTION_TYPES.importResources, {
+            language,
+            resources
+          })
+        }
+      }
+    }
+  }
+
+  prepareEditingResource = resource => {
+    const { dispatch } = this.props
+    dispatchAction(dispatch)(ACTION_TYPES.prepareEditingResource, resource)
+  }
+
   handleRemoveResource = key => {
     const { dispatch } = this.props
 
@@ -202,7 +246,7 @@ class HomePage extends Component {
     })
   }
 
-  handleExportResource = () => {
+  handleExportResources = () => {
     const { exportResourceModal, handleToggleExportResourceModal, props } = this
     const { currentNamespace, resources } = props
     if (exportResourceModal) {
@@ -226,13 +270,18 @@ class HomePage extends Component {
     }
   }
 
+  handleChangeLanguage = ({ key: language }) => {
+    this.setState({ language })
+  }
+
   render() {
     const { condition, currentNamespace, namespaces, resources } = this.props
     const {
       [STATE_MODAL_VISIBLE_ADD_NAMESPACE]: modalVisibleAddNamespace,
       [STATE_MODAL_VISIBLE_ADD_RESOURCE]: modalVisibleAddResource,
       [STATE_MODAL_VISIBLE_EXPORT_RESOURCE]: modalVisibleExportResource,
-      selectedKeys
+      selectedKeys,
+      language
     } = this.state
 
     return (
@@ -247,7 +296,7 @@ class HomePage extends Component {
             <TabPane
               key={namespace}
               tab={namespace}
-              // closable={namespaces.length > 1}
+              closable={namespaces.length > 1}
             />
           ))}
         </Tabs>
@@ -267,8 +316,12 @@ class HomePage extends Component {
             >
               删除
             </Button>
-            <Button onClick={this.handleToggleImportModal}>导入</Button>
             <Button onClick={this.handleToggleExportResourceModal}>导出</Button>
+            <Dropdown.Button overlay={this.overlay}>
+              <FileUploader onChange={this.handleImportResources}>
+                {language === 'zh' ? '导入中文资源' : '导入英文资源'}
+              </FileUploader>
+            </Dropdown.Button>
           </ButtonGroup>
           <Search value={condition} onChange={this.handleChangeCondition} />
         </Pane>
@@ -291,9 +344,10 @@ class HomePage extends Component {
           visible={modalVisibleAddResource}
           wrappedComponentRef={modal => (this.addResourceModal = modal)}
         />
+        <EditResourceModal />
         <ExportResourceModal
           onCancel={this.handleToggleExportResourceModal}
-          onOk={this.handleExportResource}
+          onOk={this.handleExportResources}
           visible={modalVisibleExportResource}
           wrappedComponentRef={modal => (this.exportResourceModal = modal)}
         />

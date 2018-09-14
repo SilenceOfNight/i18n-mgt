@@ -1,9 +1,19 @@
 import React, { Component } from 'react'
-import { Form, Modal, Select, Upload } from 'antd'
+import { Button, Form, Icon, Modal, Select, Upload } from 'antd'
 
 const FormItem = Form.Item
-const Option = Select.Option
+const SelectOption = Select.Option
 
+const languages = [
+  {
+    label: '中文',
+    value: 'zh'
+  },
+  {
+    label: 'English',
+    value: 'en'
+  }
+]
 class ExportResourceModal extends Component {
   UNSAFE_componentWillReceiveProps(nextProps) {
     const { visible: nextVisible } = nextProps
@@ -20,7 +30,57 @@ class ExportResourceModal extends Component {
       <Modal title="导出国际化资源" {...rest}>
         <Form>
           <FormItem>
+            {getFieldDecorator('files', {
+              // valuePropName: 'fileList',
+              // getValueFromEvent: event => {
+              //   if (Array.isArray(event)) {
+              //     return event.slice(-1)
+              //   }
+              //   const file = event && event.fileList.slice(-1)
+              //   return file
+              // },
+              normalize(value, prevValue, allValues) {
+                console.log(value)
+                console.log(prevValue)
+                console.log(allValues)
+                const fileReader = new FileReader()
+                fileReader.readAsText(value, 'UTF-8')
+                fileReader.onload = event => {
+                  console.log(event.target.result)
+                }
+              },
+              rules: [
+                {
+                  required: true,
+                  message: '请选择您所要导入的文件'
+                },
+                {
+                  validator(rule, value, callback) {
+                    if (value && value[0] && !value[0].name.match('.json$')) {
+                      callback('请选择您要导入JSON文件')
+                    }
+                    callback()
+                  }
+                }
+              ]
+            })(
+              <Upload
+                getValueFromEvent={event => {
+                  console.log(event)
+                }}
+                beforeUpload={() => false}
+                listType="text"
+              >
+                <Button block>
+                  <Icon type="upload" />
+                  请选择需要上传的文件
+                </Button>
+              </Upload>
+            )}
+          </FormItem>
+          <FormItem>
             {getFieldDecorator('language', {
+              initialValue: 'zh',
               rules: [
                 {
                   required: true,
@@ -29,29 +89,10 @@ class ExportResourceModal extends Component {
               ]
             })(
               <Select placeholder="语言">
-                <Option key="en">English</Option>
-                <Option key="zh">中文</Option>
+                {languages.map(({ label, value }) => (
+                  <SelectOption key={value}>{label}</SelectOption>
+                ))}
               </Select>
-            )}
-          </FormItem>
-          <FormItem>
-            {getFieldDecorator('files', {
-              valuePropName: 'fileList',
-              getValueFromEvent: event => {
-                if (Array.isArray(event)) {
-                  return event
-                }
-
-                return event && event.fileList
-              }
-            })(
-              <Upload
-                beforeUpload={() => false}
-                multiple={false}
-                listType="text"
-              >
-                Click or drag file to this area to upload
-              </Upload>
             )}
           </FormItem>
         </Form>
