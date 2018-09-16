@@ -1,20 +1,24 @@
 import dva from 'dva'
+import { createLogger } from 'redux-logger'
 import './index.css'
 
 // 1. Initialize
 const app = dva({
+  onAction: [createLogger()],
   initialState: {
     resources: {
       current: 'translation',
+      condition: null,
+      filter: 'all',
       namespaces: {
-        translation: [
-          {
-            key: 'model.confernece.subject.label',
-            en: 'Subject',
-            zh: '主题'
-          }
-        ],
-        error: []
+        translation: {
+          defaultLanguage: 'zh',
+          languages: {
+            zh: '中文',
+            en: '英文'
+          },
+          resources: {}
+        }
       }
     }
   }

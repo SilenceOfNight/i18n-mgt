@@ -12,10 +12,10 @@ const Uploader = styled.input.attrs({ type: 'file' })`
   width: 0;
 `
 
-const FileUploader = ({ children, ...args }) => {
+const FileUploader = ({ children, wrappedComponentRef, ...args }) => {
   return (
     <Container {...args}>
-      <Uploader />
+      <Uploader innerRef={wrappedComponentRef} />
       {children}
     </Container>
   )

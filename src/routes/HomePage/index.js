@@ -1,32 +1,50 @@
 import React, { Component, Fragment } from 'react'
 import { connect } from 'dva'
-import { Dropdown, Menu, Modal, Input, Table, Tabs, message } from 'antd'
+import {
+  Col,
+  Dropdown,
+  Menu,
+  Modal,
+  Input,
+  Row,
+  Table,
+  Tabs,
+  Tag,
+  message
+} from 'antd'
 import FileUploader from '../../components/FileUploader'
 import {
+  ButtonGroup,
   Page,
   Pane,
   Sider,
-  ButtonGroup,
   StyledButton as Button,
-  TextButton
+  StyledSelect as Select,
+  Text,
+  TextButton,
+  Tips
 } from './styles'
 import {
   ACTION_TYPES,
   getCondition,
-  getCurrentNamespace,
+  getNamespaceName,
   getCurrentResources,
   getNamespaces,
-  dispatchAction
+  dispatchAction,
+  getCurrentLanguages,
+  getFilter,
+  getDefaultLanguage
 } from '../../models/resources'
 import { saveAs } from 'file-saver/FileSaver'
 import { flatten, unflatten } from 'flat'
+import ClosableButton from './components/ClosableButton'
 import AddNamespaceModal from './components/AddNamespaceModal'
-import AddResourceModal from './components/AddResourceModal'
+import AddResourceModal from './containers/ConnectedAddResourceModal'
 import EditResourceModal from './containers/ConnectedEditResourceModal'
 import ExportResourceModal from './components/ExportResourceModal'
 
 const TabPane = Tabs.TabPane
-const Search = Sider.withComponent(Input.Search)
+const Search = Input.Search
 
 const STATE_MODAL_VISIBLE_ADD_NAMESPACE = 'modalVisibleAddNamespace'
 const STATE_MODAL_VISIBLE_ADD_RESOURCE = 'modalVisibleAddResource'
@@ -36,30 +54,44 @@ class HomePage extends Component {
   constructor(props) {
     super(props)
 
+    const { languages } = props
+
+    const descrColumns = languages.map(({ label, value }) => ({
+      key: value,
+      title: `资源描述(${label})`,
+      dataIndex: value,
+      render: (text, record) => {
+        const verified = this.isVerified(record)
+        return <Text verified={verified}>{text}</Text>
+      }
+    }))
+
     this.columns = [
       {
-        title: 'I18n Key',
+        title: '资源标识',
         dataIndex: 'key',
         key: 'key',
-        width: '25%'
+        render: (text, record) => {
+          const verified = this.isVerified(record)
+          return <Text verified={verified}>{text}</Text>
+        },
+        width: '20%'
       },
-      {
-        title: '英文描述',
-        dataIndex: 'en',
-        key: 'en',
-        width: '25%'
-      },
-      {
-        title: '中文描述',
-        dataIndex: 'zh',
-        key: 'zh',
-        width: '25%'
-      },
+      ...descrColumns,
       {
         title: '操作',
         dataIndex: 'key',
         key: 'operator',
         render: (text, record) => {
+          const verified = this.isVerified(record)
+          const hasEmpty = languages.reduce((hasEmpty, { value }) => {
+            if (hasEmpty) {
+              return true
+            }
+
+            return !record[value]
+          }, false)
+
           return (
             <Fragment>
               <TextButton onClick={() => this.prepareEditingResource(record)}>
@@ -68,30 +100,20 @@ class HomePage extends Component {
               <TextButton onClick={() => this.handleRemoveResource(text)}>
                 删除
               </TextButton>
+              {verified ? null : (
+                <TextButton
+                  disabled={hasEmpty}
+                  onClick={() => this.handleVerifyResource(record)}
+                >
+                  校对
+                </TextButton>
+              )}
             </Fragment>
           )
         },
-        width: '25%'
+        width: '15%'
       }
     ]
-
-    this.overlay = (
-      <Menu onClick={this.handleChangeLanguage}>
-        <Menu.Item key="zh">中文</Menu.Item>
-        <Menu.Item key="en">英文</Menu.Item>
-      </Menu>
-    )
-  }
-
-  rowSelection = {
-    onChange: (selectedRowKeys, selectedRows) => {
-      this.setState({
-        selectedKeys: selectedRowKeys
-      })
-    },
-    getCheckboxProps: ({ key }) => ({
-      name: key
-    })
   }
 
   pagination = {
@@ -107,6 +129,18 @@ class HomePage extends Component {
     selectedKeys: [],
     condition: null,
     language: 'zh'
+  }
+
+  isVerified = ({ modifyAt, verifyAt }) => {
+    if (!verifyAt) {
+      return false
+    }
+
+    if (modifyAt) {
+      return verifyAt > modifyAt
+    }
+
+    return true
   }
 
   handleChangeTabs = key => {
@@ -125,9 +159,36 @@ class HomePage extends Component {
     }
   }
 
+  handleSelectRowKeys = selectedRowKeys => {
+    this.setState({
+      selectedKeys: selectedRowKeys
+    })
+  }
+
+  handleClickMoreBtn = ({ keyPath }) => {
+    const methodName = keyPath.slice(-1)
+    const params = keyPath.slice(0, -1)
+
+    const { [methodName]: method } = this
+    if (method) {
+      method.apply(this, params)
+    }
+  }
+
+  handleOpenFileUploader = language => {
+    this.setState({ language })
+    this.fileUploader.click()
+  }
+
   handleChangeCondition = event => {
     const { dispatch } = this.props
     dispatchAction(dispatch)(ACTION_TYPES.setCondition, event.target.value)
+  }
+
+  handleChangeFilter = value => {
+    const { dispatch } = this.props
+
+    dispatchAction(dispatch)(ACTION_TYPES.setFilter, value)
   }
 
   handleToggleModal = modalVisible => () => {
@@ -153,7 +214,7 @@ class HomePage extends Component {
     const { dispatch } = props
     if (addNamespaceModal) {
       const { validateFieldsAndScroll } = addNamespaceModal.props.form
-      validateFieldsAndScroll((error, { namespace }) => {
+      validateFieldsAndScroll((error, namespace) => {
         if (!error) {
           dispatchAction(dispatch)(ACTION_TYPES.addNamespace, namespace)
           handleToggleAddNamespaceModal()
@@ -191,11 +252,6 @@ class HomePage extends Component {
           const { language } = this.state
           const resources = flatten(JSON.parse(event.target.result))
 
-          // const resources = Object.entries(content).map(([key, value]) => ({
-          //   key,
-          //   [language]: value
-          // }))
-
           dispatchAction(dispatch)(ACTION_TYPES.importResources, {
             language,
             resources
@@ -215,7 +271,7 @@ class HomePage extends Component {
 
     Modal.confirm({
       title: '危险操作',
-      content: `您确认删除选国际化资源“${key}”吗？`,
+      content: `确认删除选国际化资源“${key}”？`,
       onOk() {
         dispatchAction(dispatch)(ACTION_TYPES.removeResources, [key])
       }
@@ -227,9 +283,10 @@ class HomePage extends Component {
     const { selectedKeys } = this.state
     Modal.confirm({
       title: '危险操作',
-      content: `您确认删除国际化资源“${selectedKeys.join('，')}”吗？`,
-      onOk() {
+      content: `确认删除“${selectedKeys.join('、')}”等国际化资源？`,
+      onOk: () => {
         dispatchAction(dispatch)(ACTION_TYPES.removeResources, selectedKeys)
+        this.setState({ selectedKeys: [] })
       }
     })
   }
@@ -239,9 +296,35 @@ class HomePage extends Component {
 
     Modal.confirm({
       title: '危险操作',
-      content: `您是否确认删除命名空间“${namespace}”？`,
+      content: `确认删除命名空间“${namespace}”？`,
       onOk() {
         dispatchAction(dispatch)(ACTION_TYPES.removeNamespace, namespace)
+      }
+    })
+  }
+
+  handleAddLanguage = () => {}
+
+  handleSetDefaultLanguage = ({ label, value }) => {
+    const { dispatch } = this.props
+
+    Modal.confirm({
+      title: '危险操作',
+      content: `确认将语言“${label}[${value}]”设置为默认语言?`,
+      onOk() {
+        dispatchAction(dispatch)(ACTION_TYPES.setDefaultLanguage, value)
+      }
+    })
+  }
+
+  handleRemoveLanguage = ({ label, value }) => {
+    const { dispatch } = this.props
+
+    Modal.confirm({
+      title: '危险操作',
+      content: `确认删除语言“${label}[${value}]”?`,
+      onOk() {
+        dispatchAction(dispatch)(ACTION_TYPES.removeLanguage, value)
       }
     })
   }
@@ -253,36 +336,111 @@ class HomePage extends Component {
       const { validateFieldsAndScroll } = exportResourceModal.props.form
       validateFieldsAndScroll((error, { type, language }) => {
         if (!error) {
-          let result = {}
-          resources.forEach(({ key, [language]: value }) => {
-            result[key] = value
-          })
+          let result = null,
+            blob = null,
+            fileSuffix = null
 
-          if (type === 'nested') {
-            result = unflatten(result)
+          switch (type) {
+            case 'flat':
+              result = {}
+              fileSuffix = 'json'
+              resources.forEach(({ key, [language]: value }) => {
+                result[key] = value
+              })
+              result = JSON.stringify(result, null, 4)
+
+              break
+            case 'nested':
+              result = {}
+              fileSuffix = 'json'
+              resources.forEach(({ key, [language]: value }) => {
+                result[key] = value
+              })
+              result = JSON.stringify(unflatten(result), null, 4)
+              break
+            case 'properties':
+              result = []
+              fileSuffix = 'properties'
+              resources.forEach(({ key, [language]: value }) => {
+                result.push(`${key}=${value}`)
+              })
+              result = result.join(' ')
+              break
+            default:
+            //nothing to do
           }
-
-          const blob = new Blob([JSON.stringify(result, null, 4)])
-          saveAs(blob, `${currentNamespace}.${language}.json`)
+          blob = new Blob([result], { type: 'text/plain;charset=utf-8' })
+          saveAs(blob, `${currentNamespace}.${language}.${fileSuffix}`)
           handleToggleExportResourceModal()
         }
       })
     }
   }
 
-  handleChangeLanguage = ({ key: language }) => {
-    this.setState({ language })
+  handleVerifyResource = ({ key }) => {
+    const { dispatch } = this.props
+
+    Modal.confirm({
+      title: '危险操作',
+      content: `确认完成国际化资源“${key}”的校对？`,
+      onOk() {
+        dispatchAction(dispatch)(ACTION_TYPES.verifyResources, [key])
+      }
+    })
+  }
+
+  handleVerifyResources = () => {
+    const { dispatch } = this.props
+    const { selectedKeys } = this.state
+    Modal.confirm({
+      title: '危险操作',
+      content: `确认完成${selectedKeys.join('、')}等国际化资源的校对？`,
+      onOk: () => {
+        dispatchAction(dispatch)(ACTION_TYPES.verifyResources, selectedKeys)
+        this.setState({ selectedKeys: [] })
+      }
+    })
   }
 
   render() {
-    const { condition, currentNamespace, namespaces, resources } = this.props
+    const {
+      condition,
+      currentNamespace,
+      filter,
+      languages,
+      defaultLanguage,
+      namespaces,
+      resources
+    } = this.props
     const {
       [STATE_MODAL_VISIBLE_ADD_NAMESPACE]: modalVisibleAddNamespace,
       [STATE_MODAL_VISIBLE_ADD_RESOURCE]: modalVisibleAddResource,
       [STATE_MODAL_VISIBLE_EXPORT_RESOURCE]: modalVisibleExportResource,
-      selectedKeys,
-      language
+      selectedKeys
     } = this.state
+
+    const rowSelection = {
+      selectedRowKeys: selectedKeys,
+      onChange: this.handleSelectRowKeys,
+      getCheckboxProps: ({ key }) => ({
+        name: key
+      })
+    }
+
+    const moreOverlay = (
+      <Menu onClick={this.handleClickMoreBtn}>
+        <Menu.SubMenu key="handleOpenFileUploader" title="导入资源">
+          {languages.map(({ label, value }) => (
+            <Menu.Item key={value}>{`${label}资源`}</Menu.Item>
+          ))}
+        </Menu.SubMenu>
+        <Menu.Item key="handleToggleExportResourceModal">导出资源</Menu.Item>
+        <Menu.Item key="handleVerifyResources" disabled={!selectedKeys.length}>
+          校对资源
+        </Menu.Item>
+        {/* <Menu.Item key="handleAddLanguage">添加语言</Menu.Item> */}
+      </Menu>
+    )
 
     return (
       <Page>
@@ -300,6 +458,26 @@ class HomePage extends Component {
             />
           ))}
         </Tabs>
+        <Tips>
+          默认语言：
+          <Tag color="blue">{`${defaultLanguage.label}[${
+            defaultLanguage.value
+          }]`}</Tag>
+          ，其他语言：
+          {languages.map(language => {
+            const { label, value } = language
+            if (defaultLanguage.value === value) return null
+            else
+              return (
+                <ClosableButton
+                  key={value}
+                  closable
+                  onClick={() => this.handleSetDefaultLanguage(language)}
+                  onClose={() => this.handleRemoveLanguage(language)}
+                >{`${label}[${value}]`}</ClosableButton>
+              )
+          })}
+        </Tips>
         <Pane>
           <ButtonGroup>
             <Button
@@ -307,30 +485,50 @@ class HomePage extends Component {
               style={{ marginRight: '10px' }}
               onClick={this.handleToggleAddResourceModal}
             >
-              添加
+              添加资源
             </Button>
             <Button
               type="danger"
               disabled={!selectedKeys.length}
               onClick={this.handleRemoveResources}
             >
-              删除
+              删除资源
             </Button>
-            <Button onClick={this.handleToggleExportResourceModal}>导出</Button>
-            <Dropdown.Button overlay={this.overlay}>
-              <FileUploader onChange={this.handleImportResources}>
-                {language === 'zh' ? '导入中文资源' : '导入英文资源'}
-              </FileUploader>
-            </Dropdown.Button>
+            <Dropdown.Button overlay={moreOverlay}>更多</Dropdown.Button>
           </ButtonGroup>
-          <Search value={condition} onChange={this.handleChangeCondition} />
+          <Sider>
+            <Row>
+              <Col span={8}>
+                <Select value={filter} onChange={this.handleChangeFilter}>
+                  <Select.Option key="all">全部</Select.Option>
+                  <Select.Option key="created">未修改</Select.Option>
+                  <Select.Option key="modified">未校对</Select.Option>
+                  <Select.Option key="verified">已校对</Select.Option>
+                </Select>
+              </Col>
+              <Col span={16}>
+                <Search
+                  value={condition}
+                  onChange={this.handleChangeCondition}
+                  placeholder="按资源标识搜索"
+                />
+              </Col>
+            </Row>
+          </Sider>
         </Pane>
 
         <Table
           columns={this.columns}
           dataSource={resources}
-          rowSelection={this.rowSelection}
+          rowSelection={rowSelection}
           pagination={this.pagination}
+        />
+
+        <FileUploader
+          wrappedComponentRef={fileUploader =>
+            (this.fileUploader = fileUploader)
+          }
+          onChange={this.handleImportResources}
         />
         <AddNamespaceModal
           onCancel={this.handleToggleAddNamespaceModal}
@@ -358,7 +556,10 @@ class HomePage extends Component {
 
 export default connect(state => ({
   condition: getCondition(state),
-  currentNamespace: getCurrentNamespace(state),
+  currentNamespace: getNamespaceName(state),
+  filter: getFilter(state),
   namespaces: getNamespaces(state),
+  languages: getCurrentLanguages(state),
+  defaultLanguage: getDefaultLanguage(state),
   resources: getCurrentResources(state)
 }))(HomePage)

@@ -29,6 +29,26 @@ class AddResourceModal extends Component {
               ]
             })(<Input placeholder="命名空间名称" />)}
           </FormItem>
+          <FormItem>
+            {getFieldDecorator('language.value', {
+              rules: [
+                {
+                  required: true,
+                  message: '默认语言不允许为空'
+                }
+              ]
+            })(<Input placeholder="默认语言" />)}
+          </FormItem>
+          <FormItem>
+            {getFieldDecorator('language.label', {
+              rules: [
+                {
+                  required: true,
+                  message: '默认语言描述不允许为空'
+                }
+              ]
+            })(<Input placeholder="默认语言描述" />)}
+          </FormItem>
         </Form>
       </Modal>
     )

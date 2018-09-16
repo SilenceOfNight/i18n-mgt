@@ -1,6 +1,7 @@
 // import React from 'react'
 import { connect } from 'dva'
 import {
+  getCurrentLanguages,
   getEditingResource,
   dispatchAction,
   ACTION_TYPES
@@ -8,6 +9,7 @@ import {
 import EditResourceModal from '../components/EditResourceModal'
 
 const mapStateToProps = state => ({
+  languages: getCurrentLanguages(state),
   resource: getEditingResource(state),
   visible: !!getEditingResource(state)
 })

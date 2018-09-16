@@ -1,9 +1,10 @@
 import React from 'react'
+import _ from 'lodash'
 import { Form, Input, Modal } from 'antd'
 
 const FormItem = Form.Item
 
-const EditResourceModal = ({ form, onSubmit, ...rest }) => {
+const EditResourceModal = ({ form, languages, onSubmit, ...rest }) => {
   const { getFieldDecorator } = form
   return (
     <Modal
@@ -22,66 +23,33 @@ const EditResourceModal = ({ form, onSubmit, ...rest }) => {
       <Form>
         <FormItem>
           {getFieldDecorator('key', {
-              rules: [
-                {
-                  required: true,
-                  message: '国际化资源Key不允许为空'
-                }
-              ]
-            })(<Input placeholder="国际化资源Key" />)}
+            rules: [
+              {
+                required: true,
+                message: '资源标识不允许为空'
+              }
+            ]
+          })(<Input placeholder="资源标识" />)}
         </FormItem>
-        <FormItem>
-          {getFieldDecorator('en', {
-              rules: [
-                {
-                  validator(rule, value, callback) {
-                    const { getFieldValue } = form
-                    if (!value && !getFieldValue('zh')) {
-                      callback('英文描述和中文描述不能同时为空')
-                    }
-                    callback()
-                  }
-                }
-              ]
-            })(<Input placeholder="英语描述" />)}
-        </FormItem>
-        <FormItem>
-          {getFieldDecorator('zh', {
-              rules: [
-                {
-                  validator(rule, value, callback) {
-                    const { getFieldValue } = form
-                    if (!value && !getFieldValue('en')) {
-                      callback('英文描述和中文描述不能同时为空')
-                    }
-                    callback()
-                  }
-                }
-              ]
-            })(<Input placeholder="中文描述" />)}
-        </FormItem>
+        {languages.map(({ label, value }) => {
+          return (
+            <FormItem key={label}>
+              {getFieldDecorator(value)(<Input placeholder={`${label}资源`} />)}
+            </FormItem>
+          )
+        })}
       </Form>
     </Modal>
   )
 }
 
 export default Form.create({
-  mapPropsToFields({ resource, ...rest }, ...args) {
+  mapPropsToFields({ resource }) {
     if (!resource) {
       return null
     }
 
-    const { key, en, zh } = resource
-    return {
-      key: Form.createFormField({
-        value: key
-      }),
-      en: Form.createFormField({
-        value: en
-      }),
-      zh: Form.createFormField({
-        value: zh
-      })
-    }
+    const { createAt, modifyAt, verifyAt, ...rest } = resource
+    return _.mapValues(rest, value => Form.createFormField({ value }))
   }
 })(EditResourceModal)

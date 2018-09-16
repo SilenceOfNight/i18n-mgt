@@ -7,8 +7,8 @@ const RadioGroup = Radio.Group
 
 const formItemProps = {
   colon: false,
-  labelCol: { span: 8 },
-  wrapperCol: { span: 12 }
+  labelCol: { span: 4 },
+  wrapperCol: { span: 20 }
 }
 
 const types = [
@@ -19,6 +19,10 @@ const types = [
   {
     label: 'Nested JSON',
     value: 'nested'
+  },
+  {
+    label: 'Properties',
+    value: 'properties'
   }
 ]
 
