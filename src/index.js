@@ -2,10 +2,26 @@ import dva from 'dva'
 import { createLogger } from 'redux-logger'
 import './index.css'
 
+const createPersiter = (
+  options = { key: 'store', storage: localStorage }
+) => store => next => action => {
+  const { key, storage } = options
+  const preState = store.getState()
+  const nextDispatch = next(action)
+  const nextState = store.getState()
+
+  if (preState !== nextState) {
+    storage.setItem(key, JSON.stringify(nextState))
+  }
+  return nextDispatch
+}
+
+const initialState = JSON.parse(localStorage.getItem('store'))
+
 // 1. Initialize
 const app = dva({
-  onAction: [createLogger()],
-  initialState: {
+  onAction: [createLogger(), createPersiter()],
+  initialState: initialState || {
     resources: {
       current: 'translation',
       condition: null,
