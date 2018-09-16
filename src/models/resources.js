@@ -114,13 +114,14 @@ export default {
     },
     [ACTION_TYPES.addResource](state, { payload: resource }) {
       const { current, namespaces: preNamespaces } = state
-      const { languages, resources: preResources } = preNamespaces[current]
+      const preNamespace = preNamespaces[current]
+      const { resources: preResources } = preNamespaces[current]
       const { key, ...value } = resource
       const now = Date.now()
       const namespaces = {
         ...preNamespaces,
         [current]: {
-          languages,
+          ...preNamespace,
           resources: {
             ...preResources,
             [key]: {
@@ -173,13 +174,14 @@ export default {
     },
     [ACTION_TYPES.editResource](state, { payload: resource }) {
       const { current, namespaces: preNamespaces } = state
-      const { languages, resources: preResources } = preNamespaces[current]
+      const preNamespace = preNamespaces[current]
+      const { resources: preResources } = preNamespace
       const { key, ...value } = resource
       const preResource = preResources[key]
       const namespaces = {
         ...preNamespaces,
         [current]: {
-          languages,
+          ...preNamespace,
           resources: {
             ...preResources,
             [key]: {
@@ -195,11 +197,11 @@ export default {
     [ACTION_TYPES.removeResources](state, { payload: keysToRemove }) {
       const { current, namespaces: preNamespaces } = state
       const preNamespace = preNamespaces[current]
-      const { languages, resources: preResources } = preNamespace
+      const { resources: preResources } = preNamespace
       const namespaces = {
         ...preNamespaces,
         [current]: {
-          languages,
+          ...preNamespace,
           resources: Object.entries(preResources).reduce(
             (resources, [key, value]) => {
               if (keysToRemove.includes(key)) {
@@ -243,7 +245,7 @@ export default {
       const namespaces = {
         ...preNamespaces,
         [current]: {
-          languages,
+          ...preNamespace,
           resources
         }
       }
