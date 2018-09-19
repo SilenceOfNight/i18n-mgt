@@ -36,6 +36,7 @@ export const StyledSelect = styled(Select)`
 `
 
 export const Text = styled.span`
+  cursor: pointer;
   color: ${({ verified }) => (verified ? '#19be6b' : '#666')};
 `
 

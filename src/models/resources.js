@@ -176,15 +176,15 @@ export default {
       const { current, namespaces: preNamespaces } = state
       const preNamespace = preNamespaces[current]
       const { resources: preResources } = preNamespace
-      const { key, ...value } = resource
-      const preResource = preResources[key]
+      const { key, newKey, ...value } = resource
+      const { [key]: preResource, ...restResources } = preResources
       const namespaces = {
         ...preNamespaces,
         [current]: {
           ...preNamespace,
           resources: {
-            ...preResources,
-            [key]: {
+            ...restResources,
+            [newKey || key]: {
               ...preResource,
               ...value,
               modifyAt: Date.now()
@@ -300,33 +300,41 @@ export const getDefaultLanguage = createSelector(
     return { value: defaultLanguage, label }
   }
 )
-export const getCurrentResources = createSelector(
+export const getAllResources = createSelector(
   [getState],
-  ({ namespaces, current, condition, filter }) => {
+  ({ namespaces, current }) => {
     const namespace = namespaces[current]
     if (!namespace) {
       return []
     }
-    return Object.entries(namespace.resources)
-      .filter(([key, { modifyAt, verifyAt }]) => {
-        if (condition && key.indexOf(condition) < 0) {
-          return false
-        }
-
-        switch (filter) {
-          case 'created':
-            return !modifyAt
-          case 'modified':
-            return modifyAt && !verifyAt
-          case 'verified':
-            return modifyAt && verifyAt
-          default:
-            return true
-        }
-      })
-      .map(([key, value]) => ({ key, ...value }))
+    return Object.entries(namespace.resources).map(([key, value]) => ({
+      key,
+      ...value
+    }))
   }
 )
+export const getCurrentResources = createSelector(
+  [getAllResources, getCondition, getFilter],
+  (resources, condition, filter) => {
+    return resources.filter(({ key, modifyAt, verifyAt }) => {
+      if (condition && key.indexOf(condition) < 0) {
+        return false
+      }
+
+      switch (filter) {
+        case 'created':
+          return !modifyAt
+        case 'modified':
+          return modifyAt && !verifyAt
+        case 'verified':
+          return modifyAt && verifyAt
+        default:
+          return true
+      }
+    })
+  }
+)
+
 export const getEditingResource = createSelector(
   [getState],
   ({ editingResource }) => editingResource

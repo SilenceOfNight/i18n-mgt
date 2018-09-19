@@ -29,7 +29,10 @@ const EditResourceModal = ({ form, languages, onSubmit, ...rest }) => {
                 message: '资源标识不允许为空'
               }
             ]
-          })(<Input placeholder="资源标识" />)}
+          })(<Input readOnly placeholder="资源标识" />)}
+        </FormItem>
+        <FormItem>
+          {getFieldDecorator('newKey')(<Input placeholder="新资源标识" />)}
         </FormItem>
         {languages.map(({ label, value }) => {
           return (

@@ -24,6 +24,7 @@ import {
   TextButton,
   Tips
 } from './styles'
+import { CopyToClipboard } from 'react-copy-to-clipboard'
 import {
   ACTION_TYPES,
   getCondition,
@@ -33,7 +34,8 @@ import {
   dispatchAction,
   getCurrentLanguages,
   getFilter,
-  getDefaultLanguage
+  getDefaultLanguage,
+  getAllResources
 } from '../../models/resources'
 import { saveAs } from 'file-saver/FileSaver'
 import { flatten, unflatten } from 'flat'
@@ -62,7 +64,14 @@ class HomePage extends Component {
       dataIndex: value,
       render: (text, record) => {
         const verified = this.isVerified(record)
-        return <Text verified={verified}>{text}</Text>
+        return (
+          <CopyToClipboard
+            text={text}
+            onCopy={() => message.success('复制成功')}
+          >
+            <Text verified={verified}>{text}</Text>
+          </CopyToClipboard>
+        )
       }
     }))
 
@@ -73,7 +82,14 @@ class HomePage extends Component {
         key: 'key',
         render: (text, record) => {
           const verified = this.isVerified(record)
-          return <Text verified={verified}>{text}</Text>
+          return (
+            <CopyToClipboard
+              text={text}
+              onCopy={() => message.success('复制成功')}
+            >
+              <Text verified={verified}>{text}</Text>
+            </CopyToClipboard>
+          )
         },
         width: '20%'
       },
@@ -116,12 +132,6 @@ class HomePage extends Component {
     ]
   }
 
-  pagination = {
-    showTotal: total => `Total ${total} items`,
-    showSizeChanger: true,
-    showQuickJumper: true
-  }
-
   state = {
     [STATE_MODAL_VISIBLE_ADD_NAMESPACE]: false,
     [STATE_MODAL_VISIBLE_ADD_RESOURCE]: false,
@@ -129,6 +139,51 @@ class HomePage extends Component {
     selectedKeys: [],
     condition: null,
     language: 'zh'
+  }
+
+  pagination = {
+    showTotal: total => `Total ${total} items`,
+    showSizeChanger: true,
+    showQuickJumper: true
+  }
+
+  exportHandlers = {
+    flat: (resources, language, namespace) => {
+      const languageResources = resources.reduce(
+        (result, { key, [language]: value }) => {
+          result[key] = value
+          return result
+        },
+        {}
+      )
+      const fileData = JSON.stringify(languageResources, null, 4)
+      const blob = new Blob([fileData], { type: 'text/plain;charset=utf-8' })
+      saveAs(blob, `${namespace}.${language}.json`)
+    },
+    nested: (resources, language, namespace) => {
+      const languageResources = resources.reduce(
+        (result, { key, [language]: value }) => {
+          result[key] = value
+          return result
+        },
+        {}
+      )
+      const fileData = JSON.stringify(unflatten(languageResources), null, 4)
+      const blob = new Blob([fileData], { type: 'text/plain;charset=utf-8' })
+      saveAs(blob, `${namespace}.${language}.json`)
+    },
+    properties: (resources, language, namespace) => {
+      const languageResources = resources.reduce(
+        (result, { key, [language]: value }) => {
+          result.push(`${key}=${value}`)
+          return result
+        },
+        []
+      )
+      const fileData = languageResources.join('\n')
+      const blob = new Blob([fileData], { type: 'text/plain;charset=utf-8' })
+      saveAs(blob, `${namespace}.${language}.properties`)
+    }
   }
 
   isVerified = ({ modifyAt, verifyAt }) => {
@@ -167,7 +222,7 @@ class HomePage extends Component {
 
   handleClickMoreBtn = ({ keyPath }) => {
     const methodName = keyPath.slice(-1)
-    const params = keyPath.slice(0, -1)
+    const params = keyPath.slice(0, -1).reverse()
 
     const { [methodName]: method } = this
     if (method) {
@@ -329,48 +384,42 @@ class HomePage extends Component {
     })
   }
 
+  handleExportAllResources = type => {
+    const { currentNamespace, languages, allResources } = this.props
+
+    languages.forEach(({ value: language }) => {
+      const { [type]: exportHandler } = this.exportHandlers
+      exportHandler(allResources, language, currentNamespace)
+    })
+  }
+
+  handleClickExportResources = (action, type) => {
+    if (action === 'all') {
+      const { currentNamespace, languages, allResources } = this.props
+
+      languages.forEach(({ value: language }) => {
+        const { [type]: exportHandler } = this.exportHandlers
+        exportHandler(allResources, language, currentNamespace)
+      })
+    } else if (action === 'filter') {
+      this.handleToggleExportResourceModal()
+    }
+  }
+
   handleExportResources = () => {
-    const { exportResourceModal, handleToggleExportResourceModal, props } = this
-    const { currentNamespace, resources } = props
+    const {
+      exportHandlers,
+      exportResourceModal,
+      handleToggleExportResourceModal,
+      props
+    } = this
+    const { currentNamespace, currentResources } = props
     if (exportResourceModal) {
       const { validateFieldsAndScroll } = exportResourceModal.props.form
       validateFieldsAndScroll((error, { type, language }) => {
         if (!error) {
-          let result = null,
-            blob = null,
-            fileSuffix = null
-
-          switch (type) {
-            case 'flat':
-              result = {}
-              fileSuffix = 'json'
-              resources.forEach(({ key, [language]: value }) => {
-                result[key] = value
-              })
-              result = JSON.stringify(result, null, 4)
-
-              break
-            case 'nested':
-              result = {}
-              fileSuffix = 'json'
-              resources.forEach(({ key, [language]: value }) => {
-                result[key] = value
-              })
-              result = JSON.stringify(unflatten(result), null, 4)
-              break
-            case 'properties':
-              result = []
-              fileSuffix = 'properties'
-              resources.forEach(({ key, [language]: value }) => {
-                result.push(`${key}=${value}`)
-              })
-              result = result.join(' ')
-              break
-            default:
-            //nothing to do
-          }
-          blob = new Blob([result], { type: 'text/plain;charset=utf-8' })
-          saveAs(blob, `${currentNamespace}.${language}.${fileSuffix}`)
+          const { [type]: exportHandler } = exportHandlers
+          exportHandler(currentResources, language, currentNamespace)
           handleToggleExportResourceModal()
         }
       })
@@ -410,7 +459,7 @@ class HomePage extends Component {
       languages,
       defaultLanguage,
       namespaces,
-      resources
+      currentResources
     } = this.props
     const {
       [STATE_MODAL_VISIBLE_ADD_NAMESPACE]: modalVisibleAddNamespace,
@@ -434,7 +483,22 @@ class HomePage extends Component {
             <Menu.Item key={value}>{`${label}资源`}</Menu.Item>
           ))}
         </Menu.SubMenu>
-        <Menu.Item key="handleToggleExportResourceModal">导出资源</Menu.Item>
+        <Menu.SubMenu key="handleClickExportResources" title="导出资源">
+          <Menu.SubMenu key="all" title="全量导出">
+            <Menu.Item key="flat">Flat JSON(*.json)</Menu.Item>
+            <Menu.Item key="nested">nested JSON(*.json)</Menu.Item>
+            <Menu.Item key="properties">
+              Java Properties(*.properties)
+            </Menu.Item>
+          </Menu.SubMenu>
+          <Menu.Item key="filter">筛选导出</Menu.Item>
+        </Menu.SubMenu>
+        {/* <Menu.SubMenu key="handleExportAllResources" title="全量导出">
+          <Menu.Item key="flat">Flat JSON(*.json)</Menu.Item>
+          <Menu.Item key="nested">nested JSON(*.json)</Menu.Item>
+          <Menu.Item key="properties">Java Properties(*.properties)</Menu.Item>
+        </Menu.SubMenu>
+        <Menu.Item key="handleToggleExportResourceModal">导出资源</Menu.Item> */}
         <Menu.Item key="handleVerifyResources" disabled={!selectedKeys.length}>
           校对资源
         </Menu.Item>
@@ -519,7 +583,7 @@ class HomePage extends Component {
 
         <Table
           columns={this.columns}
-          dataSource={resources}
+          dataSource={currentResources}
           rowSelection={rowSelection}
           pagination={this.pagination}
         />
@@ -561,5 +625,6 @@ export default connect(state => ({
   namespaces: getNamespaces(state),
   languages: getCurrentLanguages(state),
   defaultLanguage: getDefaultLanguage(state),
-  resources: getCurrentResources(state)
+  currentResources: getCurrentResources(state),
+  allResources: getAllResources(state)
 }))(HomePage)
