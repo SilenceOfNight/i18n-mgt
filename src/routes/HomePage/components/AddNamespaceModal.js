@@ -37,7 +37,7 @@ class AddResourceModal extends Component {
                   message: '默认语言不允许为空'
                 }
               ]
-            })(<Input placeholder="默认语言" />)}
+            })(<Input placeholder="默认语言，例：zh-CN" />)}
           </FormItem>
           <FormItem>
             {getFieldDecorator('language.label', {
@@ -47,7 +47,7 @@ class AddResourceModal extends Component {
                   message: '默认语言描述不允许为空'
                 }
               ]
-            })(<Input placeholder="默认语言描述" />)}
+            })(<Input placeholder="默认语言描述，例：中文" />)}
           </FormItem>
         </Form>
       </Modal>

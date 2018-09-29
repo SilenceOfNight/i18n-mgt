@@ -6,6 +6,7 @@ import {
   Menu,
   Modal,
   Input,
+  Icon,
   Row,
   Table,
   Tabs,
@@ -43,6 +44,7 @@ import ClosableButton from './components/ClosableButton'
 import AddNamespaceModal from './components/AddNamespaceModal'
 import AddResourceModal from './containers/ConnectedAddResourceModal'
 import EditResourceModal from './containers/ConnectedEditResourceModal'
+import AddLanguageModal from './containers/ConnectedAddLanguageModal'
 import ExportResourceModal from './components/ExportResourceModal'
 
 const TabPane = Tabs.TabPane
@@ -52,93 +54,22 @@ const STATE_MODAL_VISIBLE_ADD_NAMESPACE = 'modalVisibleAddNamespace'
 const STATE_MODAL_VISIBLE_ADD_RESOURCE = 'modalVisibleAddResource'
 const STATE_MODAL_VISIBLE_EXPORT_RESOURCE = 'modalVisibleExportResource'
 
+const localeCompareBy = (one, other, key) => {
+  return one[key].localeCompare(other[key])
+}
+
 class HomePage extends Component {
   constructor(props) {
     super(props)
 
-    const { languages } = props
-
-    const descrColumns = languages.map(({ label, value }) => ({
-      key: value,
-      title: `资源描述(${label})`,
-      dataIndex: value,
-      render: (text, record) => {
-        const verified = this.isVerified(record)
-        return (
-          <CopyToClipboard
-            text={text}
-            onCopy={() => message.success('复制成功')}
-          >
-            <Text verified={verified}>{text}</Text>
-          </CopyToClipboard>
-        )
-      }
-    }))
-
-    this.columns = [
-      {
-        title: '资源标识',
-        dataIndex: 'key',
-        key: 'key',
-        render: (text, record) => {
-          const verified = this.isVerified(record)
-          return (
-            <CopyToClipboard
-              text={text}
-              onCopy={() => message.success('复制成功')}
-            >
-              <Text verified={verified}>{text}</Text>
-            </CopyToClipboard>
-          )
-        },
-        width: '20%'
-      },
-      ...descrColumns,
-      {
-        title: '操作',
-        dataIndex: 'key',
-        key: 'operator',
-        render: (text, record) => {
-          const verified = this.isVerified(record)
-          const hasEmpty = languages.reduce((hasEmpty, { value }) => {
-            if (hasEmpty) {
-              return true
-            }
-
-            return !record[value]
-          }, false)
-
-          return (
-            <Fragment>
-              <TextButton onClick={() => this.prepareEditingResource(record)}>
-                修改
-              </TextButton>
-              <TextButton onClick={() => this.handleRemoveResource(text)}>
-                删除
-              </TextButton>
-              {verified ? null : (
-                <TextButton
-                  disabled={hasEmpty}
-                  onClick={() => this.handleVerifyResource(record)}
-                >
-                  校对
-                </TextButton>
-              )}
-            </Fragment>
-          )
-        },
-        width: '15%'
-      }
-    ]
-  }
-
-  state = {
-    [STATE_MODAL_VISIBLE_ADD_NAMESPACE]: false,
-    [STATE_MODAL_VISIBLE_ADD_RESOURCE]: false,
-    [STATE_MODAL_VISIBLE_EXPORT_RESOURCE]: false,
-    selectedKeys: [],
-    condition: null,
-    language: 'zh'
+    this.state = {
+      [STATE_MODAL_VISIBLE_ADD_NAMESPACE]: false,
+      [STATE_MODAL_VISIBLE_ADD_RESOURCE]: false,
+      [STATE_MODAL_VISIBLE_EXPORT_RESOURCE]: false,
+      selectedKeys: [],
+      condition: null,
+      language: 'zh'
+    }
   }
 
   pagination = {
@@ -212,6 +143,14 @@ class HomePage extends Component {
     } else {
       // nothing to do
     }
+  }
+
+  handleChangeTable = (pagination, filters, sorter) => {
+    console.group()
+    console.log(pagination)
+    console.log(filters)
+    console.log(sorter)
+    console.groupEnd()
   }
 
   handleSelectRowKeys = selectedRowKeys => {
@@ -451,6 +390,11 @@ class HomePage extends Component {
     })
   }
 
+  handleAddLangBtnClick = () => {
+    const { dispatch } = this.props
+    dispatchAction(dispatch)(ACTION_TYPES.showAddLanguageModal)
+  }
+
   render() {
     const {
       condition,
@@ -493,18 +437,108 @@ class HomePage extends Component {
           </Menu.SubMenu>
           <Menu.Item key="filter">筛选导出</Menu.Item>
         </Menu.SubMenu>
-        {/* <Menu.SubMenu key="handleExportAllResources" title="全量导出">
-          <Menu.Item key="flat">Flat JSON(*.json)</Menu.Item>
-          <Menu.Item key="nested">nested JSON(*.json)</Menu.Item>
-          <Menu.Item key="properties">Java Properties(*.properties)</Menu.Item>
-        </Menu.SubMenu>
-        <Menu.Item key="handleToggleExportResourceModal">导出资源</Menu.Item> */}
         <Menu.Item key="handleVerifyResources" disabled={!selectedKeys.length}>
           校对资源
         </Menu.Item>
-        {/* <Menu.Item key="handleAddLanguage">添加语言</Menu.Item> */}
       </Menu>
     )
+
+    const columns = [
+      {
+        title: '资源标识',
+        dataIndex: 'key',
+        key: 'key',
+        render: (text, record) => {
+          const verified = this.isVerified(record)
+          return (
+            <CopyToClipboard
+              text={text}
+              onCopy={() => message.success('复制成功')}
+            >
+              <Text verified={verified}>{text}</Text>
+            </CopyToClipboard>
+          )
+        },
+        width: '20%',
+        sorter: (one, other) => localeCompareBy(one, other, 'key')
+      },
+      ...languages.map(({ label, value }) => ({
+        key: value,
+        title: `资源描述(${label})`,
+        dataIndex: value,
+        render: (text, record) => {
+          const verified = this.isVerified(record)
+          return (
+            <CopyToClipboard
+              text={text}
+              onCopy={() => message.success('复制成功')}
+            >
+              <Text verified={verified}>{text}</Text>
+            </CopyToClipboard>
+          )
+        },
+        filterDropdown: ({
+          setSelectedKeys,
+          selectedKeys,
+          confirm,
+          clearFilters
+        }) => (
+          <Input.Search
+            placeholder="过滤条件"
+            value={selectedKeys[0]}
+            onChange={event =>
+              setSelectedKeys(event.target.value ? [event.target.value] : [])
+            }
+            onSearch={() => confirm()}
+            addonAfter={
+              <Icon
+                type="close"
+                onClick={() => clearFilters()}
+                style={{ cursor: 'pointer' }}
+              />
+            }
+          />
+        ),
+        onFilter: (filterValue, record) =>
+          record[value].toLowerCase().includes(filterValue.toLowerCase()),
+        sorter: (one, other) => localeCompareBy(one, other, value)
+      })),
+      {
+        title: '操作',
+        dataIndex: 'key',
+        key: 'operator',
+        render: (text, record) => {
+          const verified = this.isVerified(record)
+          const hasEmpty = languages.reduce((hasEmpty, { value }) => {
+            if (hasEmpty) {
+              return true
+            }
+
+            return !record[value]
+          }, false)
+
+          return (
+            <Fragment>
+              <TextButton onClick={() => this.prepareEditingResource(record)}>
+                修改
+              </TextButton>
+              <TextButton onClick={() => this.handleRemoveResource(text)}>
+                删除
+              </TextButton>
+              {verified ? null : (
+                <TextButton
+                  disabled={hasEmpty}
+                  onClick={() => this.handleVerifyResource(record)}
+                >
+                  校对
+                </TextButton>
+              )}
+            </Fragment>
+          )
+        },
+        width: '15%'
+      }
+    ]
 
     return (
       <Page>
@@ -541,6 +575,12 @@ class HomePage extends Component {
                 >{`${label}[${value}]`}</ClosableButton>
               )
           })}
+          <Button
+            type="primary"
+            shape="circle"
+            icon="plus"
+            onClick={this.handleAddLangBtnClick}
+          />
         </Tips>
         <Pane>
           <ButtonGroup>
@@ -582,10 +622,11 @@ class HomePage extends Component {
         </Pane>
 
         <Table
-          columns={this.columns}
+          columns={columns}
           dataSource={currentResources}
           rowSelection={rowSelection}
           pagination={this.pagination}
+          onChange={this.handleChangeTable}
         />
 
         <FileUploader
@@ -613,6 +654,7 @@ class HomePage extends Component {
           visible={modalVisibleExportResource}
           wrappedComponentRef={modal => (this.exportResourceModal = modal)}
         />
+        <AddLanguageModal />
       </Page>
     )
   }

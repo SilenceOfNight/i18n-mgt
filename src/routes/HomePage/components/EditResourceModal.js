@@ -32,7 +32,9 @@ const EditResourceModal = ({ form, languages, onSubmit, ...rest }) => {
           })(<Input readOnly placeholder="资源标识" />)}
         </FormItem>
         <FormItem>
-          {getFieldDecorator('newKey')(<Input placeholder="新资源标识" />)}
+          {getFieldDecorator('newKey', {
+            initialValue: form.getFieldValue('key')
+          })(<Input placeholder="新资源标识" />)}
         </FormItem>
         {languages.map(({ label, value }) => {
           return (

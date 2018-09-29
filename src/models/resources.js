@@ -16,7 +16,9 @@ export const ACTION_TYPES = {
   setFilter: 'SET_FILTER',
   setDefaultLanguage: 'SET_DEFAULT_LANGUAGE',
   addLanguage: 'ADD_LANGUAGE',
-  removeLanguage: 'REMOVE_LANGUAGE'
+  removeLanguage: 'REMOVE_LANGUAGE',
+  showAddLanguageModal: 'SHOW_ADD_LANGUAGE_MODAL',
+  hideAddLanguageModal: 'HIDE_ADD_LANGUAGE_MODAL'
 }
 
 export default {
@@ -26,7 +28,8 @@ export default {
     filter: 'all',
     current: null,
     namespaces: [],
-    editingResource: null
+    editingResource: null,
+    modalVisibleAddLanguage: false
   },
   reducers: {
     [ACTION_TYPES.selectNamespace](state, { payload: namespace }) {
@@ -81,7 +84,12 @@ export default {
         }
       }
     },
-    [ACTION_TYPES.addLanguage](state, { payload: language }) {
+    [ACTION_TYPES.addLanguage](
+      state,
+      {
+        payload: { value, label }
+      }
+    ) {
       const { current, namespaces: preNamespaces } = state
       const preNamespace = preNamespaces[current]
       const { languages: preLanguages } = preNamespace
@@ -91,7 +99,7 @@ export default {
           ...preNamespaces,
           [current]: {
             ...preNamespace,
-            languages: { ...preLanguages, ...language }
+            languages: { ...preLanguages, [value]: label }
           }
         }
       }
@@ -256,6 +264,12 @@ export default {
     },
     [ACTION_TYPES.setFilter](state, { payload: filter }) {
       return { ...state, filter }
+    },
+    [ACTION_TYPES.showAddLanguageModal](state) {
+      return { ...state, modalVisibleAddLanguage: true }
+    },
+    [ACTION_TYPES.hideAddLanguageModal](state) {
+      return { ...state, modalVisibleAddLanguage: false }
     }
   }
 }
@@ -338,4 +352,8 @@ export const getCurrentResources = createSelector(
 export const getEditingResource = createSelector(
   [getState],
   ({ editingResource }) => editingResource
+)
+export const getAddLanguageModalVisble = createSelector(
+  [getState],
+  ({ modalVisibleAddLanguage }) => modalVisibleAddLanguage
 )
